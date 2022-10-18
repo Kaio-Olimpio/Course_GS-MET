@@ -10,12 +10,17 @@ email: kaio.o.dias@ufv.br
        
 ## Day 1       
 
-- Genomic Selection 
+- Genomic Selection (GS) 
 - Introduction to the linear mixed models
-- Statistical models 
 - Bayesian and frequentist genomic selection models
 
 ## Day 2
+
+- Analysis of multi-environment trials (MET) 
+- Predicting Untested Location
+- Envirotyping and Enviromics
+- MET - GS
+
 
 
 
