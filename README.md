@@ -2,6 +2,8 @@
 
 Date: 26th and 27th of October, 2022  
 
+- This course was organized by GenMelhor
+
 Authors: 
 - Prof. Dr. Kaio Olimpio das Graças Dias (DBG/UFV)
 - Ph.D Student Saulo Fabrício da Silva Chaves 
