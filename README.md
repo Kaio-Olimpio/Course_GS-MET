@@ -2,9 +2,9 @@
 
 Date: 26th and 27th of October, 2022  
 
-Authors: Prof. Dr. Kaio Olimpio das Graças Dias (DBG/UFV)
-
-         Ph.D Student Saulo Fabrício da Silva Chaves 
+Authors: 
+- Prof. Dr. Kaio Olimpio das Graças Dias (DBG/UFV)
+- Ph.D Student Saulo Fabrício da Silva Chaves 
 
 email: kaio.o.dias@ufv.br
        saulo.chaves@ufv.br 
