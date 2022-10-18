@@ -1,0 +1,464 @@
+---
+title: |
+  ![](GenMelhor.png){width=10%}
+
+  Genomic selection in a single environment
+author: 
+  - Kaio Olimpio das Graças Dias, professor^[Federal University of Viçosa, kaio.o.dias@ufv.br]
+  
+  - Saulo Fabrício da Silva Chaves, Ph.D. student^[Federal University of Viçosa, saulo.chaves@ufv.br]
+  
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    theme: flatly
+    highlight: haddock
+    includes:
+      in_header: cabecalho.html
+bibliography: references.bib
+csl: apa.csl   
+---
+
+<style type="text/css">
+  body{
+  font-size: 14pt;
+}
+</style>
+
+<br>
+
+<br>
+
+In this document you will find a step-by-step of how to perform the genomic selection in a single environment. 
+
+To perform the analyses, we will need the following packages:
+
+```{r echo=TRUE, warning=FALSE,eval=FALSE}
+require(RCurl)
+require(data.table)
+require(AGHmatrix)
+require(rrBLUP)
+require(BGLR)
+require(tidyverse)
+require(ComplexHeatmap)
+require(cvTools)
+require(patchwork)
+```
+
+```{r echo=FALSE, warning=FALSE,include=FALSE}
+library(kableExtra)
+require(RCurl)
+require(data.table)
+require(AGHmatrix)
+require(rrBLUP)
+require(BGLR)
+require(tidyverse)
+require(ComplexHeatmap)
+require(patchwork)
+require(cvTools)
+```
+
+<br>
+
+## Data
+
+Both phenotypic and genomic data are available online at this [Github page](https://github.com/samuelbfernandes/Trait-assisted-GS), which refers to the article of @fernandes_efficiency_2018.
+
+We can load the phenotypic data directly from the Github using the following command:
+
+```{r echo=TRUE}
+pheno = read.csv("https://raw.githubusercontent.com/samuelbfernandes/Trait-assisted-GS/master/means.csv")
+pheno$GENO = as.factor(pheno$GENO)
+pheno$LOC = as.factor(pheno$LOC)
+
+```
+
+```{r echo=FALSE}
+head(pheno,10) %>% kbl(escape = F, align = 'c') %>% 
+  kable_classic("hover",full_width = T, position="center", fixed_thead = T)
+
+```
+
+<br>
+
+The genomic data can also be acquired directly:
+
+```{r echo=TRUE,warning=FALSE}
+SNPs = fread("https://raw.githubusercontent.com/samuelbfernandes/Trait-assisted-GS/master/snps.csv")
+names_lines = SNPs[,1]
+SNPs = SNPs[,-1]
+SNPs = as.matrix(SNPs[1:dim(SNPs)[1], 1:dim(SNPs)[2]])
+rownames(SNPs) = names_lines$V1
+dim(SNPs)
+
+
+```
+
+```{r echo=TRUE,eval=FALSE}
+SNPs[1:5,1:5]
+```
+
+```{r echo=FALSE,include=TRUE}
+SNPs[1:5,1:5] %>% kbl(escape = F, align = 'c') %>% 
+  kable_classic("hover",full_width = T, position="center", fixed_thead = T) %>% footnote("Dimension: 453 $\\times$ 58960",general_title = "")
+
+```
+
+<br>
+
+<br>
+
+## Subsetting
+
+Note that we have three levels in the "LOC" factor:
+
+```{r echo=FALSE}
+pheno %>% group_by(LOC) %>% summarise(length(GENO)) %>% kbl(escape = F, align = 'c', col.names = c("Environments","Number of genotypes")) %>% 
+  kable_classic("hover",full_width = F, position="center", fixed_thead = T)
+```
+
+Therefore, we need to choose only one to perform the analysis. We will choose the LOC "13":
+
+```{r echo=TRUE}
+pheno_L = droplevels(subset(pheno, LOC == 13))
+```
+
+Below, we can see the distribution of frequencies regarding the grain yield trait in LOC "13". Note that the similarity to the gaussian distribution:
+
+```{r echo=TRUE, warning=FALSE}
+ggplot(pheno_L, aes(x = Y)) +  
+  geom_histogram(aes(y = ..density..), bins = 30, 
+                 colour = "black", fill = "steelblue") +
+  geom_density(alpha = .7, size = 1.5, colour = "tomato") +
+  labs(x = NULL, title = "Grain Yield",y="Density")
+```
+
+## Building the G matrix
+
+Note that the SNP matrix is coded using 1 and -1 for homozygotes and 0 for heterozygotes. We may change this codification to a dosage solution. In other words, we can represent the dosage of a allele of reference (A, for example) to code the loci. If the locus have AA, then we will atribute the number 2. If it is heterozygote, i.e. have only one A, then it will be 1. Otherwise, the locus will be represented by 0:
+
+```{r echo=TRUE,warning=FALSE}
+SNPs = SNPs + 1
+
+```
+
+```{r echo=TRUE,eval=FALSE}
+SNPs[1:5,1:5]
+```
+
+```{r echo=FALSE,include=TRUE}
+SNPs[1:5,1:5] %>% kbl(escape = F, align = 'c') %>% 
+  kable_paper("hover",full_width = T, position="center", fixed_thead = T) 
+
+```
+
+
+To simplify the analysis, we will subset the SNP matrix and use only 5000 SNPs:
+
+```{r echo=TRUE,include=TRUE}
+SNPs = SNPs[,1:5000]
+```
+
+
+We will use the [AGHmatrix](https://cran.r-project.org/web/packages/AGHmatrix/vignettes/Tutorial_AGHmatrix.html) package [@amadeu_aghmatrix_2016] to build the G matrix:
+
+```{r echo=TRUE, warning=FALSE}
+G_matrix = Gmatrix(SNPs, method = "VanRaden", ploidy = 2, missingValue = NA)
+```
+
+Now we have a square matrix whose number of rows and columns is equal to the number of genotypes. This is the G matrix:
+
+```{r echo=TRUE}
+dim(G_matrix)
+```
+
+We can represent this matrix using a heatmap:
+
+```{r}
+
+Heatmap(G_matrix, show_row_names = F, show_column_names = F,
+        heatmap_legend_param = list(title = "Res"))
+
+```
+
+"Res" in the heatmap legend title is for "Resemblance". 
+
+<br>
+
+## RRBLUP
+
+The Ridge Regression BLUP, or RRBLUP, will predict the marker effect. In the RRBLUP, we will use the matrix of markers directly. For this purpose, we will use only genotypes that were both phenotyped and genotyped:
+
+```{r echo=TRUE}
+# Selecting the phenotypes with SNP information
+length(levels(pheno_L$GENO))
+pheno_L = droplevels(pheno_L[pheno_L$GENO %in% rownames(SNPs), ])
+length(levels(pheno_L$GENO))
+
+# Filtering the SNPs matrix: only genotyped and phenotyped
+index = rownames(SNPs) %in% pheno_L$GENO
+SNPs_L = SNPs[index,]
+dim(SNPs_L)
+```
+
+Note that 38 genotypes were dropped from the SNPs matrix and the data containing the phenotypes. Those did not have both phenotypic and genomic information.
+
+Now that we filtered our data, we can employ the RRBLUP. For this purpose, we will use the [rrBLUP](https://cran.r-project.org/web/packages/rrBLUP/rrBLUP.pdf) package [@endelman_2011]. In the code below, *y* is for the vector with the phenotypic data, *Z* is where we will insert the SNPs matrix, *K* is for a covariance matrix for the random effects, which will be and identity matrix by default; and *X* is a design matrix for the fixed effects, which will be a vector of ones (**1**) by default. Note that we are returning to the "1, 0, -1" codification in the SNPs matrix. This is a requirement of the _rrBlUP_ package.
+
+```{r echo=TRUE}
+
+RRBLUP = mixed.solve(y = pheno_L$Y, Z = SNPs_L-1, K = NULL, X = NULL)
+
+as.data.frame(RRBLUP$u) %>% 
+  rownames_to_column(var = "SNP") %>% 
+  rename(BLUP = 'RRBLUP$u') %>% 
+  ggplot(aes(x = SNP, y = BLUP))+
+  geom_point()+
+  theme(axis.text.x = element_blank(), axis.ticks.x=element_blank())
+
+```
+
+The scatter plot above represents the genetic value of each marker. Once we have acquired these values, we may calculate the Genomic Estimated Breeding Values (GEBV) of the genotypes. These are the product of the SNPs matrix with the vector of the markers' genetic values:
+
+```{r echo=TRUE}
+GEBV = SNPs_L %*% RRBLUP$u
+
+as.data.frame(GEBV) %>% 
+  rownames_to_column(var = "Genotype") %>% 
+  rename(GEBV = V1) %>% 
+  ggplot(aes(x = Genotype, y = GEBV))+
+  geom_point()+
+  theme(axis.text.x = element_blank(), axis.ticks.x=element_blank())
+
+```
+
+After obtaining the GEBV, we can calculate the accuracy of prediction. The correlation between the GEBV and the actual phenotype represents this parameter:
+
+```{r echo=TRUE}
+
+acc_RRBLUP = cor(pheno_L$Y, GEBV, use = "complete.obs");acc_RRBLUP
+
+```
+
+<br>
+
+## GBLUP
+
+In the GBLUP, we will use the G matrix instead of the SNPs matrix. Thus, we will obtain the GEBV directly. Note that we will need to build the G matrix again, since some genotypes were dropped after our filtering. The rrBLUP package has a function called "A.mat" that build the Additive Genomic Matrix from a SNP matrix with "-1,0,1" codification:
+
+```{r echo=TRUE}
+GBLUP = mixed.solve(pheno_L$Y, K = A.mat(SNPs_L-1))
+
+as.data.frame(GBLUP$u) %>% 
+  rownames_to_column(var = "Genotype") %>% 
+  rename(BLUP = 'GBLUP$u') %>% 
+  ggplot(aes(x = Genotype, y = BLUP))+
+  geom_point()+
+  theme(axis.text.x = element_blank(), axis.ticks.x=element_blank())
+
+```
+
+As in the RRBLUP, we may calculate the accuracy of prediction using the correlation of the phenotypes with GEBVs:
+
+```{r echo=TRUE}
+
+acc_GBLUP = cor(pheno_L$Y, GBLUP$u, use = 'complete.obs');acc_GBLUP
+
+```
+
+<br>
+
+## Bayesian Ridge Regression
+
+We can perform the Ridge Regression in the Bayesian framework. For this purpose, we will use the [BGLR](https://github.com/gdlc/BGLR-R) package [@BGLR]. In this package, we will need an element called "ETA". In the ETA, we will set the linear predictors of the model and the priors.
+
+```{r echo=TRUE, warning=FALSE}
+ETA = list(list(X = SNPs_L, model = "BRR"))
+
+BRR = BGLR(y = pheno_L$Y, ETA = ETA, nIter = 3000, burnIn = 1000, 
+           thin = 5, verbose = F)
+
+BRR_GENO = data.frame("Genotype" = pheno_L$GENO,
+                      "Yield" = pheno_L$Y,
+                      "GEBV" = BRR$yHat)
+
+BRR_GENO %>% ggplot(aes(x = Yield, y = GEBV))+
+  geom_point()+
+  labs(caption = paste("Accuracy of prediction =", 
+                       round(cor(BRR$yHat,
+                                 pheno_L$Y,use = "complete.obs"),4)))
+
+```
+
+<br>
+
+## Bayes B
+
+To perform the Bayes B method, we will also use the BGLR package. For this purpose, we will simply change from "BRR" to "BayesB" in the model within the ETA element.
+
+```{r echo=TRUE, warning=FALSE}
+ETA = list(list(X = SNPs_L, model = "BayesB"))
+
+BayesB = BGLR(y = pheno_L$Y, ETA = ETA, nIter = 3000, burnIn = 1000, 
+           thin = 5, verbose = F)
+
+BRR_GENO = data.frame("Genotype" = pheno_L$GENO,
+                      "Yield" = pheno_L$Y,
+                      "GEBV" = BayesB$yHat)
+
+BRR_GENO %>% ggplot(aes(x = Yield, y = GEBV))+
+  geom_point()+
+  labs(caption = paste("Accuracy of prediction =", 
+                       round(cor(BayesB$yHat,
+                                 pheno_L$Y,use = "complete.obs"),4)))
+
+```
+
+<br>
+
+We can compare the estimated SNP effects of each method, BRR and BayesB:
+
+```{r echo=TRUE, warning=FALSE}
+
+bhat_BRR = BRR$ETA[[1]]$b
+bhat_BayesB = BayesB$ETA[[1]]$b
+
+bhat_BRR_plot = as.data.frame(bhat_BRR) %>% 
+  rownames_to_column(var = "SNP") %>% 
+  rename(BLUP = bhat_BRR) %>% 
+  ggplot(aes(x = SNP, y = BLUP))+
+  geom_point()+
+  geom_segment(aes(y = 0, xend = SNP, yend = BLUP),)+
+  ylim(0,max(bhat_BRR))+
+  theme(axis.text.x = element_blank(), axis.ticks.x=element_blank())+
+  labs(y="Estimated marker effect", title = "BRR")
+
+bhat_BayesB_plot = as.data.frame(bhat_BayesB) %>% 
+  rownames_to_column(var = "SNP") %>% 
+  rename(BLUP = bhat_BayesB) %>% 
+  ggplot(aes(x = SNP, y = BLUP))+
+  geom_point()+
+  geom_segment(aes(y = 0, xend = SNP, yend = BLUP),)+
+  ylim(0,max(bhat_BayesB))+
+  theme(axis.text.x = element_blank(), axis.ticks.x=element_blank())+
+  labs(y="Estimated marker effect", title = "BayesB")
+
+bhat_BRR_plot + bhat_BayesB_plot
+
+```
+
+<br>
+
+<br>
+
+## Cross-validation
+
+To prove that the prediction is accurate, we should perform a cross-validation (CV) scheme. For this purpose, we divide the data into a training set and a validation set. First we separate the data into *k* folds. Then, we attribute *NA* for one fold and try to predict the data from this fold based on the others. When selecting the number of folds, one must prioritize the balance between the number of observations in each fold. In addition, this process should be repeated for further validation. The step-by-step below will guide the CV in the data we are analysing.
+
+###  1. Determine the number of folds and repetitions
+
+```{r echo=TRUE}
+nfolds = 5
+nrept = 2
+```
+
+Since we defined 5 folds, our data will be divided into 5 parts with 83 observations each.
+
+### 2. Match the order of the data and the rows of the SNP matrix
+
+The order is decreasing or increasing (numeric or alphabetical) regarding the name of the genotypes.
+
+```{r echo=TRUE}
+pheno_L = pheno_L[order(pheno_L$GENO, decreasing = FALSE),] 
+SNPs_L = SNPs_L[order(row.names(SNPs_L)),]
+all(rownames(SNPs_L) == pheno_L$GENO)
+```
+
+### 3. Add a column indicating a number for each observation
+
+This will be useful to assign each observation for a fold, which will be the next step.
+
+```{r echo=TRUE}
+pheno_L$ID = factor(1:nrow(pheno_L))
+```
+
+### 4. Folds assignment
+
+In this step, we will assign each observation to a fold. Bear in mind that for each repetition, the folds will comprise different observations. The purpose of the repetition is to make sure of the randomness of the assignment step. In this step, we will use the [cvTools](https://cran.r-project.org/web/packages/cvTools/cvTools.pdf) package [@cvTools]
+
+```{r echo=TRUE}
+set.seed(100)
+sort<- list()
+for(a in 1:nrept){
+  for(j in 1:nfolds){
+    folds <- cvFolds(nlevels(pheno_L$ID),type = "random", K = 5, R = 1)
+    Sample <- cbind(folds$which,folds$subsets)
+    cv <- split(Sample[,2], f=Sample[,1])
+  }
+  sort[[a]] <- cv  
+}
+rm(a, folds, j, cv, Sample)
+```
+
+### 5. Cross-validation
+
+The next step is the very CV. Here, we will define the linear predictor and the lists that will be useful in the loop. The first list, here called "fold.list", contains the folds assignation that we built in the previous step. The second ("results") and third ("Out") lists are empty and will store the outputs of each iteration of the loop.
+
+```{r echo=TRUE}
+fold.list = sort
+results = list()
+Out = list()
+```
+
+Then, we will construct the loop. Each iteration will assign *NA* for a different fold, and we will use the other folds to predict the values of the annulled one. Note that the folds vary for each repetition.
+
+```{r echo=TRUE}
+for (z in 1:length(fold.list)) {
+  for (i in 1:nfolds){
+    
+    # Training set
+    train_data <- pheno_L 
+    
+    # Validation set
+    train_data[train_data$ID %in% fold.list[[z]][[i]], "Y"] <- NA 
+    
+    # Fitting model 
+    BB_M <- BGLR(y = train_data$Y, ETA = ETA, nIter = 3000, burnIn = 1000, 
+                 thin = 5, verbose = F)
+    
+    # GEBV
+    Pred <- data.frame(Yhat = BB_M$yHat, G = pheno_L$ID)
+    rownames(Pred) <- rownames(SNPs_L)
+    
+    # Predicted GEBV
+    results[[i]] <- Pred[Pred[, "G"] %in% fold.list[[z]][[i]], ] 
+    
+    # Remove
+    rm(BB_M, Pred, train_data)
+  }
+  
+  GEBV <- do.call(rbind, results)
+  GEBV <- GEBV[order(GEBV$G), ]
+  
+  # Log
+  log <- all(GEBV$G == pheno_L$ID)
+  
+  # Results
+  Out[[z]] <- data.frame(
+    Rep = z,
+    Log = log,
+    Ac = round(cor(GEBV$Yhat, pheno_L$Y, use = "na.or.complete"), 3),
+    MSPE = round(mean(((GEBV$Yhat - pheno_L$Y)^2), na.rm = T), 3)
+  )
+}
+
+Out
+
+```
+
+The object "Out" is divided by repetition. In the "Out" objects for each repetition, "Rep" is the number of the repetition, "Log" is a diagnostic indicating if the order of the predicted breeding values matches the order of the phenotypic data, "Ac" is the accuracy of prediction (correlation between the GEBV and phenotypes), and "MSPE" is the mean square prediction error (the lower, the better).
+
+The CV is the last step in the single-environment genomic selection/prediction. These models can be expanded for a multi-environment context.
+
+## References
