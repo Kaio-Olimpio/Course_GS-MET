@@ -276,18 +276,14 @@ We can perform the Ridge Regression in the Bayesian framework. For this purpose,
 ```{r echo=TRUE, warning=FALSE}
 ETA = list(list(X = SNPs_L, model = "BRR"))
 
-BRR = BGLR(y = pheno_L$Y, ETA = ETA, nIter = 3000, burnIn = 1000, 
+BRR = BGLR(y = pheno_L$Y, ETA = ETA, nIter = 30000, burnIn = 1000, 
            thin = 5, verbose = F)
 
 BRR_GENO = data.frame("Genotype" = pheno_L$GENO,
                       "Yield" = pheno_L$Y,
                       "GEBV" = BRR$yHat)
 
-BRR_GENO %>% ggplot(aes(x = Yield, y = GEBV))+
-  geom_point()+
-  labs(caption = paste("Accuracy of prediction =", 
-                       round(cor(BRR$yHat,
-                                 pheno_L$Y,use = "complete.obs"),4)))
+BRR$ETA[[1]]$varB #Variance component of the marker effects
 
 ```
 
@@ -300,18 +296,12 @@ To perform the Bayes B method, we will also use the BGLR package. For this purpo
 ```{r echo=TRUE, warning=FALSE}
 ETA = list(list(X = SNPs_L, model = "BayesB"))
 
-BayesB = BGLR(y = pheno_L$Y, ETA = ETA, nIter = 3000, burnIn = 1000, 
+BayesB = BGLR(y = pheno_L$Y, ETA = ETA, nIter = 30000, burnIn = 1000, 
            thin = 5, verbose = F)
 
-BRR_GENO = data.frame("Genotype" = pheno_L$GENO,
+BayesB_GENO = data.frame("Genotype" = pheno_L$GENO,
                       "Yield" = pheno_L$Y,
                       "GEBV" = BayesB$yHat)
-
-BRR_GENO %>% ggplot(aes(x = Yield, y = GEBV))+
-  geom_point()+
-  labs(caption = paste("Accuracy of prediction =", 
-                       round(cor(BayesB$yHat,
-                                 pheno_L$Y,use = "complete.obs"),4)))
 
 ```
 
@@ -424,7 +414,7 @@ for (z in 1:length(fold.list)) {
     train_data[train_data$ID %in% fold.list[[z]][[i]], "Y"] <- NA 
     
     # Fitting model 
-    BB_M <- BGLR(y = train_data$Y, ETA = ETA, nIter = 3000, burnIn = 1000, 
+    BB_M <- BGLR(y = train_data$Y, ETA = ETA, nIter = 30000, burnIn = 1000, 
                  thin = 5, verbose = F)
     
     # GEBV

@@ -190,7 +190,7 @@ Heatmap(G_matrix, show_row_names = F, show_column_names = F,
 
 ## Genomic selection
 
-For all the multi-environment genomic analyses, we will use the [BGLR](https://github.com/gdlc/BGLR-R) package [@BGLR]. Here, we will illustrate an analysis using the Bayesian Ridge Regression, but the reader may employ different methods by changing the model term in the ETA. Indeed, the only difference between the multiple-environment and the single-environment genomic selection using BGLR is in the ETA. This is because we have to build the matrices of the other effects of the model besides the marker effects. The step-by-step below is inspired by the script that @persa_development_2021 made available.
+For all the multi-environment genomic analyses, we will use the [BGLR](https://github.com/gdlc/BGLR-R) package [@BGLR]. Here, we will illustrate an analysis using the Bayesian Ridge Regression, but the reader may employ different methods by changing the model term in the ETA. Indeed, the only difference between the multiple-environment and the single-environment genomic selection using BGLR is in the ETA. This is because we have to build the matrices of the other effects of the model besides the marker effects. The step-by-step below is inspired by the script that @persa_development_2021 made available in their article. The reader can also consult other relevant articles, such as @dias_improving_2018 and @burguenoGenomicPredictionBreeding2012.
 
 ### 1. Restraining the phenotypic data - only phenotyped and genotyped:
 
@@ -290,15 +290,9 @@ BRR_GENO = data.frame("Genotype" = pheno$GENO,
                       "Yield" = pheno$Y,
                       "GEBV" = BRR$yHat)
 
-BRR_GENO %>% ggplot(aes(x = Yield, y = GEBV))+
-  geom_point()+
-  labs(caption = paste("Accuracy of prediction =", 
-                       round(cor(BRR$yHat,
-                                 pheno$Y,use = "complete.obs"),4)))
-
 parvar = data.frame(
-  'Parameter' = c("E","G","GE","e"),
-  'Variance' = c(BRR$ETA[[1]]$varB, BRR$ETA[[2]]$varB, BRR$ETA[[3]]$varB, BRR$varE)
+  'Parameter' = c("G","GE","e"),
+  'Variance' = c(BRR$ETA[[2]]$varB, BRR$ETA[[3]]$varB, BRR$varE)
 )
 
 ```
@@ -350,15 +344,9 @@ RKHS_GENO = data.frame("Genotype" = pheno$GENO,
                       "Yield" = pheno$Y,
                       "GEBV" = RKHS$yHat)
 
-RKHS_GENO %>% ggplot(aes(x = Yield, y = GEBV))+
-  geom_point()+
-  labs(caption = paste("Accuracy of prediction =", 
-                       round(cor(RKHS$yHat,
-                                 pheno$Y,use = "complete.obs"),4)))
-
 parvar = data.frame(
-  'Parameter' = c("E","G","GE","e"),
-  'Variance' = c(RKHS$ETA[[1]]$varB, RKHS$ETA[[2]]$varU, RKHS$ETA[[3]]$varU, RKHS$varE)
+  'Parameter' = c("G","GE","e"),
+  'Variance' = c(RKHS$ETA[[2]]$varU, RKHS$ETA[[3]]$varU, RKHS$varE)
 )
 
 ```
