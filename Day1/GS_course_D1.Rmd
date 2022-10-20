@@ -370,7 +370,7 @@ ETA = list(list(V = EVD_G$vectors, d = EVD_G$values, model = "RKHS"))
 After defining the ETA, we can fit the model:
 
 ```{r echo=TRUE, warning=FALSE}
-RKHS = BGLR(y = adjmeans_L$Y,ETA = ETA, nIter = 1000, burnIn = 30, 
+RKHS = BGLR(y = adjmeans_L$Y,ETA = ETA, nIter = 30000, burnIn = 1000, 
            thin = 5, verbose = F)
 
 RKHS_GENO = data.frame("Genotype" = adjmeans_L$GENO,

@@ -458,7 +458,7 @@ for (z in 1:length(fold.list)) {
     train_data[train_data$geno %in% fold.list[[z]][[i]], "Y"] <- NA 
     
     # Fitting model 
-    RKHS_M <- BGLR(y = train_data$Y, ETA = ETA, nIter = 1000, burnIn = 30, 
+    RKHS_M <- BGLR(y = train_data$Y, ETA = ETA, nIter = 30000, burnIn = 1000, 
                  thin = 5, verbose = F)
     
     # GEBV
