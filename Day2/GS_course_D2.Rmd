@@ -44,6 +44,7 @@ require(tidyverse)
 require(ComplexHeatmap)
 require(cvTools)
 require(patchwork)
+require(coda)
 ```
 
 ```{r echo=FALSE, warning=FALSE,include=FALSE}
@@ -57,6 +58,7 @@ require(tidyverse)
 require(ComplexHeatmap)
 require(patchwork)
 require(cvTools)
+require(coda)
 ```
 
 <br>
@@ -66,16 +68,23 @@ require(cvTools)
 We will use the same data set as yesterday. Recall that the  data are available online at this [Github page](https://github.com/samuelbfernandes/Trait-assisted-GS) [@fernandes_efficiency_2018].
 
 ```{r echo=TRUE}
-pheno = read.csv("https://raw.githubusercontent.com/samuelbfernandes/Trait-assisted-GS/master/means.csv")
-pheno$GENO = as.factor(pheno$GENO)
-pheno$LOC = as.factor(pheno$LOC)
+adjmeans = read.csv("https://raw.githubusercontent.com/samuelbfernandes/Trait-assisted-GS/master/means.csv")
+adjmeans$GENO = as.factor(adjmeans$GENO)
+adjmeans$LOC = as.factor(adjmeans$LOC)
+
+```
+```{r echo=FALSE}
+
+head(adjmeans)%>% kbl(escape = F, align = 'c') %>% 
+  kable_classic("hover",full_width = F, position="center", fixed_thead = T)
+
 
 ```
 
 In this case, we will use the whole data set. Note that the environments differ regarding the number of evaluated genotypes:
 
 ```{r echo=FALSE}
-pheno %>% group_by(LOC) %>% summarise(length(GENO)) %>% kbl(escape = F, align = 'c', col.names = c("Environments","Number of genotypes")) %>% 
+adjmeans %>% group_by(LOC) %>% summarise(length(GENO)) %>% kbl(escape = F, align = 'c', col.names = c("Environments","Number of genotypes")) %>% 
   kable_classic("hover",full_width = F, position="center", fixed_thead = T)
 
 ```
@@ -84,8 +93,8 @@ Note also that some genotypes were not evaluated in all the environments:
 
 ```{r echo=TRUE}
 
-genmat = model.matrix(~-1+GENO, data = pheno)
-envmat = model.matrix(~-1+LOC, data = pheno)
+genmat = model.matrix(~-1+GENO, data = adjmeans)
+envmat = model.matrix(~-1+LOC, data = adjmeans)
 genenvmat = t(envmat) %*% genmat
 genenvmat_ch = ifelse(genenvmat == 1, "Present", "Abscent")
 Heatmap(genenvmat_ch, col = c("white","tomato"), show_column_names = F,
@@ -112,7 +121,7 @@ In the matrix above, the diagonal represents the number of genotypes in the j-th
 The distribution of frequencies regarding the evaluated trait (grain yield) in all the environments is also similar to the gaussian distribution:
 
 ```{r echo=TRUE, warning=FALSE}
-ggplot(pheno, aes(x = Y)) +  
+ggplot(adjmeans, aes(x = Y)) +  
   geom_histogram(aes(y = ..density..), bins = 30, 
                  colour = "black", fill = "steelblue") +
   geom_density(alpha = .7, size = 1.5, colour = "tomato") +
@@ -121,7 +130,7 @@ ggplot(pheno, aes(x = Y)) +
 
 <br>
 
-Now that we loaded and visualized the phenotypic data, we will load the genomic data. Here, we will also use the whole matrix:
+Now that we loaded and visualized the adjmeanstypic data, we will load the genomic data. Here, we will also use the whole matrix:
 
 ```{r echo=TRUE,warning=FALSE}
 SNPs = fread("https://raw.githubusercontent.com/samuelbfernandes/Trait-assisted-GS/master/snps.csv")
@@ -192,12 +201,12 @@ Heatmap(G_matrix, show_row_names = F, show_column_names = F,
 
 For all the multi-environment genomic analyses, we will use the [BGLR](https://github.com/gdlc/BGLR-R) package [@BGLR]. Here, we will illustrate an analysis using the Bayesian Ridge Regression, but the reader may employ different methods by changing the model term in the ETA. Indeed, the only difference between the multiple-environment and the single-environment genomic selection using BGLR is in the ETA. This is because we have to build the matrices of the other effects of the model besides the marker effects. The step-by-step below is inspired by the script that @persa_development_2021 made available in their article. The reader can also consult other relevant articles, such as @dias_improving_2018 and @burguenoGenomicPredictionBreeding2012.
 
-### 1. Restraining the phenotypic data - only phenotyped and genotyped:
+### 1. Restraining the adjmeanstypic data - only adjmeanstyped and genotyped:
 
 ```{r echo=TRUE}
-length(levels(pheno$GENO))
-pheno = droplevels(pheno[pheno$GENO %in% rownames(SNPs), ])
-length(levels(pheno$GENO))
+length(levels(adjmeans$GENO))
+adjmeans = droplevels(adjmeans[adjmeans$GENO %in% rownames(SNPs), ])
+length(levels(adjmeans$GENO))
 
 ```
 
@@ -208,7 +217,7 @@ length(levels(pheno$GENO))
 
 ```{r echo=TRUE}
 
-envmat = model.matrix(~-1+LOC, data = pheno)
+envmat = model.matrix(~-1+LOC, data = adjmeans)
 ```
 
 ```{r echo=FALSE}
@@ -217,7 +226,7 @@ envmat[1:5,1:3] %>% kbl(escape = F, align = 'c') %>%
 ```
 
 ```{r echo=TRUE}
-genmat = model.matrix(~-1+GENO, data = pheno)
+genmat = model.matrix(~-1+GENO, data = adjmeans)
 ```
 
 ```{r echo=FALSE}
@@ -282,12 +291,12 @@ ETA = list(list(X = E, model = "FIXED"),
 ### 6. Running the model
 
 ```{r echo=TRUE, warning=FALSE}
-BRR = BGLR(y = pheno$Y,ETA = ETA, nIter = 30000, burnIn = 1000, 
+BRR = BGLR(y = adjmeans$Y,ETA = ETA, nIter = 30000, burnIn = 1000, 
            thin = 5, verbose = F)
 
-BRR_GENO = data.frame("Genotype" = pheno$GENO,
-                      "Environment" = pheno$LOC,
-                      "Yield" = pheno$Y,
+BRR_GENO = data.frame("Genotype" = adjmeans$GENO,
+                      "Environment" = adjmeans$LOC,
+                      "Yield" = adjmeans$Y,
                       "GEBV" = BRR$yHat)
 
 parvar = data.frame(
@@ -303,6 +312,7 @@ parvar %>% kbl(escape = F, align = 'c') %>%
   kable_classic("hover",full_width = T, position="center", fixed_thead = T)
 
 ```
+
 
 <br>
 
@@ -336,12 +346,12 @@ ETA = list(list(X = E, model = "FIXED"),
 After defining the ETA, we can fit the model:
 
 ```{r echo=TRUE, warning=FALSE}
-RKHS = BGLR(y = pheno$Y,ETA = ETA, nIter = 30000, burnIn = 1000, 
+RKHS = BGLR(y = adjmeans$Y,ETA = ETA, nIter = 30000, burnIn = 1000, 
            thin = 5, verbose = F)
 
-RKHS_GENO = data.frame("Genotype" = pheno$GENO,
-                      "Environment" = pheno$LOC,
-                      "Yield" = pheno$Y,
+RKHS_GENO = data.frame("Genotype" = adjmeans$GENO,
+                      "Environment" = adjmeans$LOC,
+                      "Yield" = adjmeans$Y,
                       "GEBV" = RKHS$yHat)
 
 parvar = data.frame(
@@ -359,7 +369,6 @@ data.frame(
   kable_classic("hover",full_width = T, position="center", fixed_thead = T)
 ```
 
-
 <br>
 
 <br>
@@ -368,118 +377,7 @@ data.frame(
 
 In the multi-environment context, there are four types of cross-validation: CV1, CV2, CV0 and CV00. In CV1, we predict the performance of genotypes that were not tested in any environments, based on the performance of its relatives. In CV2, we predict the performance of genotypes that were tested in some environment, but were not tested in others. This is a common situation in plant breeding, and configure the sparse-test design. CV1 and CV2 are genotype-related. Conversely, CV0 and CV00 are related to the environments. In CV0, we predict how would be the performance of the tested genotypes in an untested environment. In CV00, we predict the performance of untested genotypes in untested environments. All the CV schemes have the same base: divide the data into a training set and a validation set by separating the data into *k* folds, then attributing *NA* for one fold and try to predict the data from this fold based on the others.
 
-Here, we will illustrate only CV1 and CV2
-
-### CV2
-
-####  **1. Determine the number of folds and repetitions**
-
-```{r echo=TRUE}
-nfolds = 6
-nrept = 3
-```
-
-By defining 6 folds, our data will be divided into 6 parts with 167 observations each.
-
-<br>
-
-#### **2. Match the order of the data and the rows of the SNP matrix by environment**
-
-The order is decreasing or increasing (numeric or alphabetical) regarding the name of the genotypes.
-
-```{r echo=TRUE}
-pheno = pheno %>% arrange(LOC,GENO)
-SNPs = SNPs[order(row.names(SNPs)),]
-```
-
-<br>
-
-#### **3. Add a column indicating a number for each observation**
-
-This will be useful to assign each observation for a fold, which will be the next step.
-
-```{r echo=TRUE}
-pheno$ID = factor(1:nrow(pheno))
-```
-
-<br>
-
-#### **4. Folds assignment**
-
-In this step, we will assign each observation to a fold. Bear in mind that for each repetition, the folds will comprise different observations. The purpose of the repetition is to make sure of the randomness of the assignment step. In this step, we will use the [cvTools](https://cran.r-project.org/web/packages/cvTools/cvTools.pdf) package [@cvTools]
-
-```{r echo=TRUE}
-set.seed(100)
-sort<- list()
-for(a in 1:nrept){
-  for(j in 1:nfolds){
-    folds <- cvFolds(nlevels(pheno$ID),type = "random", K = nfolds, R = 1)
-    Sample <- cbind(folds$which,folds$subsets)
-    cv <- split(Sample[,2], f=Sample[,1])
-  }
-  sort[[a]] <- cv  
-}
-rm(a, folds, j, cv, Sample)
-```
-
-<br>
-
-#### **5. Cross-validation 2**
-
-```{r echo=TRUE}
-fold.list = sort
-results = list()
-Out = list()
-
-ETA = list(list(X = E, model = "FIXED"),
-           list(V = EVD_G$vectors, d = EVD_G$values, model = "RKHS"),
-           list(V = EVD_GE$vectors, d = EVD_GE$values, model = "RKHS"))
-
-for (z in 1:length(fold.list)) {
-  for (i in 1:nfolds){
-    
-    # Training set
-    train_data <- pheno 
-    
-    # Validation set
-    train_data[train_data$ID %in% fold.list[[z]][[i]], "Y"] <- NA 
-    
-    # Fitting model 
-    RKHS_M <- BGLR(y = train_data$Y, ETA = ETA, nIter = 30000, burnIn = 1000, 
-                 thin = 5, verbose = F)
-    
-    # GEBV
-    Pred <- data.frame(Yhat = RKHS_M$yHat, G = pheno$ID)
-    rownames(Pred) <- rownames(pheno$GENO)
-    
-    # Predicted GEBV
-    results[[i]] <- Pred[Pred[, "G"] %in% fold.list[[z]][[i]], ] 
-    
-    # Remove
-    rm(RKHS_M, Pred, train_data)
-  }
-  
-  GEBV <- do.call(rbind, results)
-  GEBV <- GEBV[order(GEBV$G), ]
-  
-  # Log
-  log <- all(GEBV$G == pheno$ID)
-  
-  # Results
-  Out[[z]] <- data.frame(
-    Rep = z,
-    Log = log,
-    Ac = round(cor(GEBV$Yhat, pheno$Y, use = "na.or.complete"), 3),
-    MSPE = round(mean(((GEBV$Yhat - pheno$Y)^2), na.rm = T), 3),
-    Slope = round(unname(lm(pheno$Y ~ GEBV$Yhat)$coefficients[2]),3)
-  )
-}
-
-Out
-
-```
-
-Recall that object "Out" is divided by repetition. In the "Out" objects for each repetition, "Rep" is the number of the repetition, "Log" is a diagnostic indicating if the order of the predicted breeding values matches the order of the phenotypic data, "Ac" is the accuracy of prediction (correlation between the GEBV and phenotypes), "MSPE" is the mean square prediction error (the lower, the better), and "Slope" indicates the linearity between the GEBV and the phenotypes (the higher, the better).
+Here, we will illustrate only CV1
 
 ### CV1
 
@@ -490,14 +388,14 @@ nfolds = 3
 nrept = 6
 ```
 
-The number of folds is different in this case. It will represent the number of genotypes which will have the value set to NA. Bear in mind that that all the genotypes in a fold will have their values deleted. We have 453 genotypes and defined $k = 3$, so each fold will have 151 genotypes. Therefore, for each repetition, we will predict the genomic breeding value of 151 genotypes based on the performance of 302 genotypes.
+The number of folds will represent the number of genotypes which will have the value set to NA. Bear in mind that that all the genotypes in a fold will have their values deleted. We have 453 genotypes and defined $k = 3$, so each fold will have 151 genotypes. Therefore, for each repetition, we will predict the genomic breeding value of 151 genotypes based on the performance of 302 genotypes.
 
 <br>
 
 #### **2. Match the order of the data and the rows of the SNP matrix by environment**
 
 ```{r echo=TRUE}
-pheno = pheno %>% arrange(GENO)
+adjmeans = adjmeans %>% arrange(GENO)
 SNPs = SNPs[order(row.names(SNPs)),]
 ```
 
@@ -505,14 +403,14 @@ SNPs = SNPs[order(row.names(SNPs)),]
 
 #### **3. Add a column indicating a number for each genotype**
 
-This step is also different from CV2. Here, we will set a number for each genotype. Thus, we will substitute the ID column that we created in CV2 for a new ID column, appropriate for the CV1 scheme.
+Here, we will set a number for each genotype. Thus, we will substitute the ID column that we created in CV2 for a new ID column, appropriate for the CV1 scheme.
 
 ```{r echo=TRUE}
-pheno = pheno %>% 
-  select(-ID) %>% 
-  left_join(data.frame(GENO = levels(pheno$GENO),
-           ID = 1:nlevels(pheno$GENO)), by = "GENO") %>% 
-  mutate(ID = as.factor(ID))
+names = as.numeric(as.factor(rownames(SNPs)))
+adjmeans$geno = NA
+for(i in 1:453){ 
+  adjmeans$geno[which(rownames(SNPs)[i]==adjmeans$GENO)]<-names[i]
+}
 
 ```
 
@@ -523,11 +421,12 @@ pheno = pheno %>%
 In this step, we will assign each genotype to a fold.
 
 ```{r echo=TRUE}
+adjmeans$geno = as.factor(adjmeans$geno)
 set.seed(100)
 sort<- list()
 for(a in 1:nrept){
   for(j in 1:nfolds){
-    folds <- cvFolds(nlevels(pheno$ID),type = "random", K = nfolds, R = 1)
+    folds <- cvFolds(nlevels(adjmeans$geno),type = "random", K = nfolds, R = 1)
     Sample <- cbind(folds$which,folds$subsets)
     cv <- split(Sample[,2], f=Sample[,1])
   }
@@ -538,7 +437,7 @@ rm(a, folds, j, cv, Sample)
 
 <br>
 
-#### **5. Cross-validation 2**
+#### **5. Cross-validation**
 
 ```{r echo=TRUE}
 fold.list = sort
@@ -553,18 +452,18 @@ for (z in 1:length(fold.list)) {
   for (i in 1:nfolds){
     
     # Training set
-    train_data <- pheno 
+    train_data <- adjmeans 
     
     # Validation set
-    train_data[train_data$ID %in% fold.list[[z]][[i]], "Y"] <- NA 
+    train_data[train_data$geno %in% fold.list[[z]][[i]], "Y"] <- NA 
     
     # Fitting model 
-    RKHS_M <- BGLR(y = train_data$Y, ETA = ETA, nIter = 30000, burnIn = 1000, 
+    RKHS_M <- BGLR(y = train_data$Y, ETA = ETA, nIter = 1000, burnIn = 30, 
                  thin = 5, verbose = F)
     
     # GEBV
-    Pred <- data.frame(Yhat = RKHS_M$yHat, G = pheno$ID)
-    rownames(Pred) <- rownames(pheno$GENO)
+    Pred <- data.frame(Yhat = RKHS_M$yHat, G = adjmeans$geno)
+    rownames(Pred) <- rownames(adjmeans$geno)
     
     # Predicted GEBV
     results[[i]] <- Pred[Pred[, "G"] %in% fold.list[[z]][[i]], ] 
@@ -577,15 +476,15 @@ for (z in 1:length(fold.list)) {
   GEBV <- GEBV[order(GEBV$G), ]
   
   # Log
-  log <- all(GEBV$G == pheno$ID)
+  log <- all(GEBV$G == adjmeans$geno)
   
   # Results
   Out[[z]] <- data.frame(
     Rep = z,
     Log = log,
-    Ac = round(cor(GEBV$Yhat, pheno$Y, use = "na.or.complete"), 3),
-    MSPE = round(mean(((GEBV$Yhat - pheno$Y)^2), na.rm = T), 3),
-    Slope = round(unname(lm(pheno$Y ~ GEBV$Yhat)$coefficients[2]),3)
+    Ac = round(cor(GEBV$Yhat, adjmeans$Y, use = "na.or.complete"), 3),
+    MSPE = round(mean(((GEBV$Yhat - adjmeans$Y)^2), na.rm = T), 3),
+    Slope = round(unname(lm(adjmeans$Y ~ GEBV$Yhat)$coefficients[2]),3)
   )
 }
 
@@ -593,7 +492,6 @@ Out
 
 ```
 
-Note that the accuracies are much lower than CV2. This is because CV1 is a more complex situation, and relies entirely on the information that is "borrowed" by the relatives. 
 
 
 ## References

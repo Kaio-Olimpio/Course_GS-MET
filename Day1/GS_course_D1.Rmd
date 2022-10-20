@@ -44,6 +44,7 @@ require(tidyverse)
 require(ComplexHeatmap)
 require(cvTools)
 require(patchwork)
+require(coda)
 ```
 
 ```{r echo=FALSE, warning=FALSE,include=FALSE}
@@ -56,6 +57,7 @@ require(BGLR)
 require(tidyverse)
 require(ComplexHeatmap)
 require(patchwork)
+require(coda)
 require(cvTools)
 ```
 
@@ -63,19 +65,19 @@ require(cvTools)
 
 ## Data
 
-Both phenotypic and genomic data are available online at this [Github page](https://github.com/samuelbfernandes/Trait-assisted-GS), which refers to the article of @fernandes_efficiency_2018.
+Both adjmeanstypic and genomic data are available online at this [Github page](https://github.com/samuelbfernandes/Trait-assisted-GS), which refers to the article of @fernandes_efficiency_2018.
 
-We can load the phenotypic data directly from the Github using the following command:
+We can load the adjmeanstypic data directly from the Github using the following command:
 
 ```{r echo=TRUE}
-pheno = read.csv("https://raw.githubusercontent.com/samuelbfernandes/Trait-assisted-GS/master/means.csv")
-pheno$GENO = as.factor(pheno$GENO)
-pheno$LOC = as.factor(pheno$LOC)
+adjmeans = read.csv("https://raw.githubusercontent.com/samuelbfernandes/Trait-assisted-GS/master/means.csv")
+adjmeans$GENO = as.factor(adjmeans$GENO)
+adjmeans$LOC = as.factor(adjmeans$LOC)
 
 ```
 
 ```{r echo=FALSE}
-head(pheno,10) %>% kbl(escape = F, align = 'c') %>% 
+head(adjmeans,10) %>% kbl(escape = F, align = 'c') %>% 
   kable_classic("hover",full_width = T, position="center", fixed_thead = T)
 
 ```
@@ -114,20 +116,20 @@ SNPs[1:5,1:5] %>% kbl(escape = F, align = 'c') %>%
 Note that we have three levels in the "LOC" factor:
 
 ```{r echo=FALSE}
-pheno %>% group_by(LOC) %>% summarise(length(GENO)) %>% kbl(escape = F, align = 'c', col.names = c("Environments","Number of genotypes")) %>% 
+adjmeans %>% group_by(LOC) %>% summarise(length(GENO)) %>% kbl(escape = F, align = 'c', col.names = c("Environments","Number of genotypes")) %>% 
   kable_classic("hover",full_width = F, position="center", fixed_thead = T)
 ```
 
 Therefore, we need to choose only one to perform the analysis. We will choose the LOC "13":
 
 ```{r echo=TRUE}
-pheno_L = droplevels(subset(pheno, LOC == 13))
+adjmeans_L = droplevels(subset(adjmeans, LOC == 13))
 ```
 
 Below, we can see the distribution of frequencies regarding the grain yield trait in LOC "13". Note that the similarity to the gaussian distribution:
 
 ```{r echo=TRUE, warning=FALSE}
-ggplot(pheno_L, aes(x = Y)) +  
+ggplot(adjmeans_L, aes(x = Y)) +  
   geom_histogram(aes(y = ..density..), bins = 30, 
                  colour = "black", fill = "steelblue") +
   geom_density(alpha = .7, size = 1.5, colour = "tomato") +
@@ -167,7 +169,7 @@ We will use the [AGHmatrix](https://cran.r-project.org/web/packages/AGHmatrix/vi
 G_matrix = Gmatrix(SNPs, method = "VanRaden", ploidy = 2, missingValue = NA)
 ```
 
-Now we have a square matrix whose number of rows and columns is equal to the number of genotypes. This is the G matrix:
+Now we have a square matrix whose number of rows and columns is equal to the number of genotypes. This is the Genomic kinship matrix:
 
 ```{r echo=TRUE}
 dim(G_matrix)
@@ -188,27 +190,27 @@ Heatmap(G_matrix, show_row_names = F, show_column_names = F,
 
 ## RRBLUP
 
-The Ridge Regression BLUP, or RRBLUP, will predict the marker effect. In the RRBLUP, we will use the matrix of markers directly. For this purpose, we will use only genotypes that were both phenotyped and genotyped:
+The Ridge Regression BLUP, or RRBLUP, will predict the marker effect. In the RRBLUP, we will use the matrix of markers directly. For this purpose, we will use only genotypes that were both adjmeanstyped and genotyped:
 
 ```{r echo=TRUE}
-# Selecting the phenotypes with SNP information
-length(levels(pheno_L$GENO))
-pheno_L = droplevels(pheno_L[pheno_L$GENO %in% rownames(SNPs), ])
-length(levels(pheno_L$GENO))
+# Selecting the adjmeanstypes with SNP information
+length(levels(adjmeans_L$GENO))
+adjmeans_L = droplevels(adjmeans_L[adjmeans_L$GENO %in% rownames(SNPs), ])
+length(levels(adjmeans_L$GENO))
 
-# Filtering the SNPs matrix: only genotyped and phenotyped
-index = rownames(SNPs) %in% pheno_L$GENO
+# Filtering the SNPs matrix: only genotyped and adjmeanstyped
+index = rownames(SNPs) %in% adjmeans_L$GENO
 SNPs_L = SNPs[index,]
 dim(SNPs_L)
 ```
 
-Note that 38 genotypes were dropped from the SNPs matrix and the data containing the phenotypes. Those did not have both phenotypic and genomic information.
+Note that 38 genotypes were dropped from the SNPs matrix and the data containing the adjmeanstypes. Those did not have both adjmeanstypic and genomic information.
 
-Now that we filtered our data, we can employ the RRBLUP. For this purpose, we will use the [rrBLUP](https://cran.r-project.org/web/packages/rrBLUP/rrBLUP.pdf) package [@endelman_2011]. In the code below, *y* is for the vector with the phenotypic data, *Z* is where we will insert the SNPs matrix, *K* is for a covariance matrix for the random effects, which will be and identity matrix by default; and *X* is a design matrix for the fixed effects, which will be a vector of ones (**1**) by default. Note that we are returning to the "1, 0, -1" codification in the SNPs matrix. This is a requirement of the _rrBlUP_ package.
+Now that we filtered our data, we can employ the RRBLUP. For this purpose, we will use the [rrBLUP](https://cran.r-project.org/web/packages/rrBLUP/rrBLUP.pdf) package [@endelman_2011]. In the code below, *y* is for the vector with the adjmeanstypic data, *Z* is where we will insert the SNPs matrix, *K* is for a covariance matrix for the random effects, which will be and identity matrix by default; and *X* is a design matrix for the fixed effects, which will be a vector of ones (**1**) by default. Note that we are returning to the "1, 0, -1" codification in the SNPs matrix. This is a requirement of the _rrBlUP_ package.
 
 ```{r echo=TRUE}
 
-RRBLUP = mixed.solve(y = pheno_L$Y, Z = SNPs_L-1, K = NULL, X = NULL)
+RRBLUP = mixed.solve(y = adjmeans_L$Y, Z = SNPs_L-1, K = NULL, X = NULL)
 
 as.data.frame(RRBLUP$u) %>% 
   rownames_to_column(var = "SNP") %>% 
@@ -233,11 +235,11 @@ as.data.frame(GEBV) %>%
 
 ```
 
-After obtaining the GEBV, we can calculate the accuracy of prediction. The correlation between the GEBV and the actual phenotype represents this parameter:
+After obtaining the GEBV, we can calculate the accuracy of prediction. The correlation between the GEBV and the actual adjmeanstype represents this parameter:
 
 ```{r echo=TRUE}
 
-acc_RRBLUP = cor(pheno_L$Y, GEBV, use = "complete.obs");acc_RRBLUP
+acc_RRBLUP = cor(adjmeans_L$Y, GEBV, use = "complete.obs");acc_RRBLUP
 
 ```
 
@@ -248,7 +250,7 @@ acc_RRBLUP = cor(pheno_L$Y, GEBV, use = "complete.obs");acc_RRBLUP
 In the GBLUP, we will use the G matrix instead of the SNPs matrix. Thus, we will obtain the GEBV directly. Note that we will need to build the G matrix again, since some genotypes were dropped after our filtering. The rrBLUP package has a function called "A.mat" that build the Additive Genomic Matrix from a SNP matrix with "-1,0,1" codification:
 
 ```{r echo=TRUE}
-GBLUP = mixed.solve(pheno_L$Y, K = A.mat(SNPs_L-1))
+GBLUP = mixed.solve(adjmeans_L$Y, K = A.mat(SNPs_L-1))
 
 as.data.frame(GBLUP$u) %>% 
   rownames_to_column(var = "Genotype") %>% 
@@ -259,11 +261,11 @@ as.data.frame(GBLUP$u) %>%
 
 ```
 
-As in the RRBLUP, we may calculate the accuracy of prediction using the correlation of the phenotypes with GEBVs:
+As in the RRBLUP, we may calculate the accuracy of prediction using the correlation of the adjmeanstypes with GEBVs:
 
 ```{r echo=TRUE}
 
-acc_GBLUP = cor(pheno_L$Y, GBLUP$u, use = 'complete.obs');acc_GBLUP
+acc_GBLUP = cor(adjmeans_L$Y, GBLUP$u, use = 'complete.obs');acc_GBLUP
 
 ```
 
@@ -276,16 +278,17 @@ We can perform the Ridge Regression in the Bayesian framework. For this purpose,
 ```{r echo=TRUE, warning=FALSE}
 ETA = list(list(X = SNPs_L, model = "BRR"))
 
-BRR = BGLR(y = pheno_L$Y, ETA = ETA, nIter = 30000, burnIn = 1000, 
+BRR = BGLR(y = adjmeans_L$Y, ETA = ETA, nIter = 30000, burnIn = 1000, 
            thin = 5, verbose = F)
 
-BRR_GENO = data.frame("Genotype" = pheno_L$GENO,
-                      "Yield" = pheno_L$Y,
+BRR_GENO = data.frame("Genotype" = adjmeans_L$GENO,
+                      "Yield" = adjmeans_L$Y,
                       "GEBV" = BRR$yHat)
 
 BRR$ETA[[1]]$varB #Variance component of the marker effects
 
 ```
+
 
 <br>
 
@@ -296,11 +299,11 @@ To perform the Bayes B method, we will also use the BGLR package. For this purpo
 ```{r echo=TRUE, warning=FALSE}
 ETA = list(list(X = SNPs_L, model = "BayesB"))
 
-BayesB = BGLR(y = pheno_L$Y, ETA = ETA, nIter = 30000, burnIn = 1000, 
+BayesB = BGLR(y = adjmeans_L$Y, ETA = ETA, nIter = 30000, burnIn = 1000, 
            thin = 5, verbose = F)
 
-BayesB_GENO = data.frame("Genotype" = pheno_L$GENO,
-                      "Yield" = pheno_L$Y,
+BayesB_GENO = data.frame("Genotype" = adjmeans_L$GENO,
+                      "Yield" = adjmeans_L$Y,
                       "GEBV" = BayesB$yHat)
 
 ```
@@ -338,6 +341,46 @@ bhat_BRR_plot + bhat_BayesB_plot
 
 ```
 
+## Using eigenvalues - RKHS
+
+We can also use the eigenvalues of the $\mathbf G$ covariance matrix to perform the analyses. But first, we have to build $\mathbf G$:
+
+```{r}
+genmat = model.matrix(~-1+GENO, data = adjmeans_L)
+G_matrix_L = Gmatrix(SNPs_L, method = "VanRaden", ploidy = 2, missingValue = NA)
+
+G = tcrossprod(tcrossprod(genmat,G_matrix_L),genmat)
+
+```
+
+Then, we may estimate the eigenalues (and eigenvectors):
+
+```{r}
+EVD_G = eigen(G)
+```
+
+
+This action is useful for speeding the analyses. After obtaining the eigenvalues (and the eigenvectors), we can insert them in the ETA component. In that case, we will the Reproducing Kernel Hilbert Spaces (RKHS) regressions, which uses the eigenvalues to perform the analyses
+
+```{r echo=TRUE, warning=FALSE}
+ETA = list(list(V = EVD_G$vectors, d = EVD_G$values, model = "RKHS"))
+
+```
+
+After defining the ETA, we can fit the model:
+
+```{r echo=TRUE, warning=FALSE}
+RKHS = BGLR(y = adjmeans_L$Y,ETA = ETA, nIter = 1000, burnIn = 30, 
+           thin = 5, verbose = F)
+
+RKHS_GENO = data.frame("Genotype" = adjmeans_L$GENO,
+                      "Yield" = adjmeans_L$Y,
+                      "GEBV" = RKHS$yHat)
+
+RKHS$ETA[[1]]$varU #Variance component of the genetics effects
+
+```
+
 <br>
 
 <br>
@@ -360,9 +403,9 @@ Since we defined 5 folds, our data will be divided into 5 parts with 83 observat
 The order is decreasing or increasing (numeric or alphabetical) regarding the name of the genotypes.
 
 ```{r echo=TRUE}
-pheno_L = pheno_L[order(pheno_L$GENO, decreasing = FALSE),] 
+adjmeans_L = adjmeans_L[order(adjmeans_L$GENO, decreasing = FALSE),] 
 SNPs_L = SNPs_L[order(row.names(SNPs_L)),]
-all(rownames(SNPs_L) == pheno_L$GENO)
+all(rownames(SNPs_L) == adjmeans_L$GENO)
 ```
 
 ### 3. Add a column indicating a number for each observation
@@ -370,7 +413,7 @@ all(rownames(SNPs_L) == pheno_L$GENO)
 This will be useful to assign each observation for a fold, which will be the next step.
 
 ```{r echo=TRUE}
-pheno_L$ID = factor(1:nrow(pheno_L))
+adjmeans_L$ID = factor(1:nrow(adjmeans_L))
 ```
 
 ### 4. Folds assignment
@@ -382,7 +425,7 @@ set.seed(100)
 sort<- list()
 for(a in 1:nrept){
   for(j in 1:nfolds){
-    folds <- cvFolds(nlevels(pheno_L$ID),type = "random", K = 5, R = 1)
+    folds <- cvFolds(nlevels(adjmeans_L$ID),type = "random", K = 5, R = 1)
     Sample <- cbind(folds$which,folds$subsets)
     cv <- split(Sample[,2], f=Sample[,1])
   }
@@ -408,7 +451,7 @@ for (z in 1:length(fold.list)) {
   for (i in 1:nfolds){
     
     # Training set
-    train_data <- pheno_L 
+    train_data <- adjmeans_L 
     
     # Validation set
     train_data[train_data$ID %in% fold.list[[z]][[i]], "Y"] <- NA 
@@ -418,7 +461,7 @@ for (z in 1:length(fold.list)) {
                  thin = 5, verbose = F)
     
     # GEBV
-    Pred <- data.frame(Yhat = BB_M$yHat, G = pheno_L$ID)
+    Pred <- data.frame(Yhat = BB_M$yHat, G = adjmeans_L$ID)
     rownames(Pred) <- rownames(SNPs_L)
     
     # Predicted GEBV
@@ -432,14 +475,14 @@ for (z in 1:length(fold.list)) {
   GEBV <- GEBV[order(GEBV$G), ]
   
   # Log
-  log <- all(GEBV$G == pheno_L$ID)
+  log <- all(GEBV$G == adjmeans_L$ID)
   
   # Results
   Out[[z]] <- data.frame(
     Rep = z,
     Log = log,
-    Ac = round(cor(GEBV$Yhat, pheno_L$Y, use = "na.or.complete"), 3),
-    MSPE = round(mean(((GEBV$Yhat - pheno_L$Y)^2), na.rm = T), 3)
+    Ac = round(cor(GEBV$Yhat, adjmeans_L$Y, use = "na.or.complete"), 3),
+    MSPE = round(mean(((GEBV$Yhat - adjmeans_L$Y)^2), na.rm = T), 3)
   )
 }
 
@@ -447,7 +490,7 @@ Out
 
 ```
 
-The object "Out" is divided by repetition. In the "Out" objects for each repetition, "Rep" is the number of the repetition, "Log" is a diagnostic indicating if the order of the predicted breeding values matches the order of the phenotypic data, "Ac" is the accuracy of prediction (correlation between the GEBV and phenotypes), and "MSPE" is the mean square prediction error (the lower, the better).
+The object "Out" is divided by repetition. In the "Out" objects for each repetition, "Rep" is the number of the repetition, "Log" is a diagnostic indicating if the order of the predicted breeding values matches the order of the adjmeanstypic data, "Ac" is the accuracy of prediction (correlation between the GEBV and adjmeanstypes), and "MSPE" is the mean square prediction error (the lower, the better).
 
 The CV is the last step in the single-environment genomic selection/prediction. These models can be expanded for a multi-environment context.
 
