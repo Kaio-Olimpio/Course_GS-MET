@@ -363,8 +363,8 @@ parvar = data.frame(
 
 ```{r echo=FALSE}
 data.frame(
-  'Parameter' = c("E","G","GE","e"),
-  'Variance' = c(RKHS$ETA[[1]]$varB, RKHS$ETA[[2]]$varU, RKHS$ETA[[3]]$varU, RKHS$varE)
+  'Parameter' = c("G","GE","e"),
+  'Variance' = c(RKHS$ETA[[2]]$varU, RKHS$ETA[[3]]$varU, RKHS$varE)
 ) %>% kbl(escape = F, align = 'c') %>% 
   kable_classic("hover",full_width = T, position="center", fixed_thead = T)
 ```
