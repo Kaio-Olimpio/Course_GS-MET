@@ -44,7 +44,7 @@ require(tidyverse)
 require(ComplexHeatmap)
 require(cvTools)
 require(patchwork)
-require(coda)
+require(emmeans)
 ```
 
 ```{r echo=FALSE, warning=FALSE,include=FALSE}
@@ -58,7 +58,7 @@ require(tidyverse)
 require(ComplexHeatmap)
 require(patchwork)
 require(cvTools)
-require(coda)
+require(emmeans)
 ```
 
 <br>
@@ -291,7 +291,7 @@ ETA = list(list(X = E, model = "FIXED"),
 ### 6. Running the model
 
 ```{r echo=TRUE, warning=FALSE}
-BRR = BGLR(y = adjmeans$Y,ETA = ETA, nIter = 30000, burnIn = 1000, 
+BRR = BGLR(y = adjmeans$Y,ETA = ETA, nIter = 15000, burnIn = 5000, 
            thin = 5, verbose = F)
 
 BRR_GENO = data.frame("Genotype" = adjmeans$GENO,
@@ -346,7 +346,7 @@ ETA = list(list(X = E, model = "FIXED"),
 After defining the ETA, we can fit the model:
 
 ```{r echo=TRUE, warning=FALSE}
-RKHS = BGLR(y = adjmeans$Y,ETA = ETA, nIter = 30000, burnIn = 1000, 
+RKHS = BGLR(y = adjmeans$Y,ETA = ETA, nIter = 15000, burnIn = 5000, 
            thin = 5, verbose = F)
 
 RKHS_GENO = data.frame("Genotype" = adjmeans$GENO,
@@ -392,10 +392,23 @@ The number of folds will represent the number of genotypes which will have the v
 
 <br>
 
+#### **2. Obtaining the estimated marginal means**
+
+```{r}
+
+mod = lm(Y ~ GENO + LOC, data = adjmeans)
+
+estmean = as.data.frame(emmeans(mod, specs = 'GENO'))[,1:2]
+
+colnames(estmean) = c("GENO","Y")
+```
+
+<br>
+
 #### **2. Match the order of the data and the rows of the SNP matrix by environment**
 
 ```{r echo=TRUE}
-adjmeans = adjmeans %>% arrange(GENO)
+estmean = estmean[order(estmean$GENO),]
 SNPs = SNPs[order(row.names(SNPs)),]
 ```
 
@@ -407,9 +420,9 @@ Here, we will set a number for each genotype. Thus, we will substitute the ID co
 
 ```{r echo=TRUE}
 names = as.numeric(as.factor(rownames(SNPs)))
-adjmeans$geno = NA
+estmean$geno = NA
 for(i in 1:453){ 
-  adjmeans$geno[which(rownames(SNPs)[i]==adjmeans$GENO)]<-names[i]
+  estmean$geno[which(rownames(SNPs)[i]==estmean$GENO)]<-names[i]
 }
 
 ```
@@ -421,12 +434,12 @@ for(i in 1:453){
 In this step, we will assign each genotype to a fold.
 
 ```{r echo=TRUE}
-adjmeans$geno = as.factor(adjmeans$geno)
+estmean$geno = as.factor(estmean$geno)
 set.seed(100)
 sort<- list()
 for(a in 1:nrept){
   for(j in 1:nfolds){
-    folds <- cvFolds(nlevels(adjmeans$geno),type = "random", K = nfolds, R = 1)
+    folds <- cvFolds(nlevels(estmean$geno),type = "random", K = nfolds, R = 1)
     Sample <- cbind(folds$which,folds$subsets)
     cv <- split(Sample[,2], f=Sample[,1])
   }
@@ -444,47 +457,45 @@ fold.list = sort
 results = list()
 Out = list()
 
-ETA = list(list(X = E, model = "FIXED"),
-           list(V = EVD_G$vectors, d = EVD_G$values, model = "RKHS"),
-           list(V = EVD_GE$vectors, d = EVD_GE$values, model = "RKHS"))
+ETA = list(list(X = SNPs, model = "BRR"))
 
 for (z in 1:length(fold.list)) {
   for (i in 1:nfolds){
     
     # Training set
-    train_data <- adjmeans 
+    train_data <- estmean 
     
     # Validation set
     train_data[train_data$geno %in% fold.list[[z]][[i]], "Y"] <- NA 
     
     # Fitting model 
-    RKHS_M <- BGLR(y = train_data$Y, ETA = ETA, nIter = 30000, burnIn = 1000, 
+    CV_M <- BGLR(y = train_data$Y, ETA = ETA, nIter = 15000, burnIn =5000, 
                  thin = 5, verbose = F)
     
     # GEBV
-    Pred <- data.frame(Yhat = RKHS_M$yHat, G = adjmeans$geno)
-    rownames(Pred) <- rownames(adjmeans$geno)
+    Pred <- data.frame(Yhat = CV_M$yHat, G = estmean$geno)
+    rownames(Pred) <- rownames(estmean$geno)
     
     # Predicted GEBV
     results[[i]] <- Pred[Pred[, "G"] %in% fold.list[[z]][[i]], ] 
     
     # Remove
-    rm(RKHS_M, Pred, train_data)
+    rm(CV_M, Pred, train_data)
   }
   
   GEBV <- do.call(rbind, results)
   GEBV <- GEBV[order(GEBV$G), ]
   
   # Log
-  log <- all(GEBV$G == adjmeans$geno)
+  log <- all(GEBV$G == estmean$geno)
   
   # Results
   Out[[z]] <- data.frame(
     Rep = z,
     Log = log,
-    Ac = round(cor(GEBV$Yhat, adjmeans$Y, use = "na.or.complete"), 3),
-    MSPE = round(mean(((GEBV$Yhat - adjmeans$Y)^2), na.rm = T), 3),
-    Slope = round(unname(lm(adjmeans$Y ~ GEBV$Yhat)$coefficients[2]),3)
+    Ac = round(cor(GEBV$Yhat, estmean$Y, use = "na.or.complete"), 3),
+    MSPE = round(mean(((GEBV$Yhat - estmean$Y)^2), na.rm = T), 3),
+    Slope = round(unname(lm(estmean$Y ~ GEBV$Yhat)$coefficients[2]),3)
   )
 }
 
