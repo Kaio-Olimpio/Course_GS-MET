@@ -44,7 +44,6 @@ require(tidyverse)
 require(ComplexHeatmap)
 require(cvTools)
 require(patchwork)
-require(coda)
 ```
 
 ```{r echo=FALSE, warning=FALSE,include=FALSE}
@@ -57,7 +56,6 @@ require(BGLR)
 require(tidyverse)
 require(ComplexHeatmap)
 require(patchwork)
-require(coda)
 require(cvTools)
 ```
 
@@ -278,7 +276,7 @@ We can perform the Ridge Regression in the Bayesian framework. For this purpose,
 ```{r echo=TRUE, warning=FALSE}
 ETA = list(list(X = SNPs_L, model = "BRR"))
 
-BRR = BGLR(y = adjmeans_L$Y, ETA = ETA, nIter = 30000, burnIn = 1000, 
+BRR = BGLR(y = adjmeans_L$Y, ETA = ETA, nIter = 15000, burnIn = 5000, 
            thin = 5, verbose = F)
 
 BRR_GENO = data.frame("Genotype" = adjmeans_L$GENO,
@@ -299,7 +297,7 @@ To perform the Bayes B method, we will also use the BGLR package. For this purpo
 ```{r echo=TRUE, warning=FALSE}
 ETA = list(list(X = SNPs_L, model = "BayesB"))
 
-BayesB = BGLR(y = adjmeans_L$Y, ETA = ETA, nIter = 30000, burnIn = 1000, 
+BayesB = BGLR(y = adjmeans_L$Y, ETA = ETA, nIter = 15000, burnIn = 5000, 
            thin = 5, verbose = F)
 
 BayesB_GENO = data.frame("Genotype" = adjmeans_L$GENO,
@@ -370,7 +368,7 @@ ETA = list(list(V = EVD_G$vectors, d = EVD_G$values, model = "RKHS"))
 After defining the ETA, we can fit the model:
 
 ```{r echo=TRUE, warning=FALSE}
-RKHS = BGLR(y = adjmeans_L$Y,ETA = ETA, nIter = 30000, burnIn = 1000, 
+RKHS = BGLR(y = adjmeans_L$Y,ETA = ETA, nIter = 15000, burnIn = 5000, 
            thin = 5, verbose = F)
 
 RKHS_GENO = data.frame("Genotype" = adjmeans_L$GENO,
@@ -447,6 +445,8 @@ Out = list()
 Then, we will construct the loop. Each iteration will assign *NA* for a different fold, and we will use the other folds to predict the values of the annulled one. Note that the folds vary for each repetition.
 
 ```{r echo=TRUE}
+
+ETA = list(list(X = SNPs_L, model = "BayesB"))
 for (z in 1:length(fold.list)) {
   for (i in 1:nfolds){
     
@@ -457,7 +457,7 @@ for (z in 1:length(fold.list)) {
     train_data[train_data$ID %in% fold.list[[z]][[i]], "Y"] <- NA 
     
     # Fitting model 
-    BB_M <- BGLR(y = train_data$Y, ETA = ETA, nIter = 30000, burnIn = 1000, 
+    BB_M <- BGLR(y = train_data$Y, ETA = ETA, nIter = 15000, burnIn = 5000, 
                  thin = 5, verbose = F)
     
     # GEBV
