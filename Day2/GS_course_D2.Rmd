@@ -30,7 +30,7 @@ csl: apa.csl
 
 <br>
 
-Yesterday, we learned how to perform the genomic selection in a single environment. Today, we will expand the models to a multiple-environment context.
+Yesterday, we learned how to perform genomic selection in a single environment trial. Today, we will expand the models to a multiple-environment context.
 
 To perform the analyses, we will need the following packages:
 
@@ -65,7 +65,7 @@ require(emmeans)
 
 ## Data
 
-We will use the same data set as yesterday. Recall that the  data are available online at this [Github page](https://github.com/samuelbfernandes/Trait-assisted-GS) [@fernandes_efficiency_2018].
+We will use the same data set as yesterday. Recall that the data are available online at this [GitHub page](https://github.com/samuelbfernandes/Trait-assisted-GS) [@fernandes_efficiency_2018].
 
 ```{r echo=TRUE}
 adjmeans = read.csv("https://raw.githubusercontent.com/samuelbfernandes/Trait-assisted-GS/master/means.csv")
@@ -130,7 +130,7 @@ ggplot(adjmeans, aes(x = Y)) +
 
 <br>
 
-Now that we loaded and visualized the adjmeanstypic data, we will load the genomic data. Here, we will also use the whole matrix:
+Now we will load the genomic data. Here, we will also use the whole matrix:
 
 ```{r echo=TRUE,warning=FALSE}
 SNPs = fread("https://raw.githubusercontent.com/samuelbfernandes/Trait-assisted-GS/master/snps.csv")
@@ -199,9 +199,9 @@ Heatmap(G_matrix, show_row_names = F, show_column_names = F,
 
 ## Genomic selection
 
-For all the multi-environment genomic analyses, we will use the [BGLR](https://github.com/gdlc/BGLR-R) package [@BGLR]. Here, we will illustrate an analysis using the Bayesian Ridge Regression, but the reader may employ different methods by changing the model term in the ETA. Indeed, the only difference between the multiple-environment and the single-environment genomic selection using BGLR is in the ETA. This is because we have to build the matrices of the other effects of the model besides the marker effects. The step-by-step below is inspired by the script that @persa_development_2021 made available in their article. The reader can also consult other relevant articles, such as @dias_improving_2018 and @burguenoGenomicPredictionBreeding2012.
+For all the multi-environment genomic analyses, we will use the [BGLR](https://github.com/gdlc/BGLR-R) package [@BGLR]. Here, we will illustrate an analysis using the Bayesian Ridge Regression, but the reader may employ different methods by changing the model term in the ETA. Indeed, the only difference between the multiple-environment and the single-environment genomic selection using BGLR is in the ETA. This is because we have to build the matrices of the other effects of the model besides the marker effects. The step-by-step below is inspired by the script that @persa_development_2021 made available in their article. The reader can also consult other relevant articles, such as @dias_improving_2018 and @jarquin_reaction_2014.
 
-### 1. Restraining the adjmeanstypic data - only adjmeanstyped and genotyped:
+### 1. Restraining the genotype means - only adj. means and genotyped:
 
 ```{r echo=TRUE}
 length(levels(adjmeans$GENO))
@@ -291,7 +291,7 @@ ETA = list(list(X = E, model = "FIXED"),
 ### 6. Running the model
 
 ```{r echo=TRUE, warning=FALSE}
-BRR = BGLR(y = adjmeans$Y,ETA = ETA, nIter = 15000, burnIn = 5000, 
+BRR = BGLR(y = adjmeans$Y,ETA = ETA, nIter = 10000, burnIn = 5000, 
            thin = 5, verbose = F)
 
 BRR_GENO = data.frame("Genotype" = adjmeans$GENO,
@@ -334,7 +334,7 @@ EVD_GE = eigen(GE)
 
 ```
 
-This action is useful for optimizing the computational time. After obtaining the eigenvalues (and the eigenvectors), we can insert them in the ETA component, substituting the covariance matrices. In that case, we will no longer use the BRR method. Instead, we will use the Reproducing Kernel Hilbert Spaces (RKHS) regressions, which uses the eigenvalues to perform the analyses
+This action is useful for optimizing the computational time. After obtaining the eigenvalues (and the eigenvectors), we can insert them in the ETA component, substituting the covariance matrices. In that case, we will no longer use the BRR method. Instead, we will use the Reproducing Kernel Hilbert Spaces (RKHS) regressions, which use the eigenvalues to perform the analyses
 
 ```{r echo=TRUE, warning=FALSE}
 ETA = list(list(X = E, model = "FIXED"),
@@ -346,7 +346,7 @@ ETA = list(list(X = E, model = "FIXED"),
 After defining the ETA, we can fit the model:
 
 ```{r echo=TRUE, warning=FALSE}
-RKHS = BGLR(y = adjmeans$Y,ETA = ETA, nIter = 15000, burnIn = 5000, 
+RKHS = BGLR(y = adjmeans$Y,ETA = ETA, nIter = 10000, burnIn = 5000, 
            thin = 5, verbose = F)
 
 RKHS_GENO = data.frame("Genotype" = adjmeans$GENO,
@@ -375,7 +375,7 @@ data.frame(
 
 ## Cross-validation
 
-In the multi-environment context, there are four types of cross-validation: CV1, CV2, CV0 and CV00. In CV1, we predict the performance of genotypes that were not tested in any environments, based on the performance of its relatives. In CV2, we predict the performance of genotypes that were tested in some environment, but were not tested in others. This is a common situation in plant breeding, and configure the sparse-test design. CV1 and CV2 are genotype-related. Conversely, CV0 and CV00 are related to the environments. In CV0, we predict how would be the performance of the tested genotypes in an untested environment. In CV00, we predict the performance of untested genotypes in untested environments. All the CV schemes have the same base: divide the data into a training set and a validation set by separating the data into *k* folds, then attributing *NA* for one fold and try to predict the data from this fold based on the others.
+In the multi-environment context, there are four types of cross-validation: CV1, CV2, CV0, and CV00. In CV1, we predict the performance of genotypes that were not tested in any environments, based on the performance of their relatives. In CV2, we predict the performance of genotypes that were tested in some environments but were not tested in others. This is a common situation in plant breeding and configuring the sparse-test design. CV1 and CV2 are genotype-related. Conversely, CV0 and CV00 are related to the environments. In CV0, we predict how would be the performance of the tested genotypes in an untested environment. In CV00, we predict the performance of untested genotypes in untested environments. All the CV schemes have the same base: divide the data into a training set and a validation set by separating the data into *k* folds, then attributing *NA* for one fold and trying to predict the data from this fold based on the others.
 
 Here, we will illustrate only CV1
 
@@ -469,7 +469,7 @@ for (z in 1:length(fold.list)) {
     train_data[train_data$geno %in% fold.list[[z]][[i]], "Y"] <- NA 
     
     # Fitting model 
-    CV_M <- BGLR(y = train_data$Y, ETA = ETA, nIter = 15000, burnIn =5000, 
+    CV_M <- BGLR(y = train_data$Y, ETA = ETA, nIter = 10000, burnIn =5000, 
                  thin = 5, verbose = F)
     
     # GEBV

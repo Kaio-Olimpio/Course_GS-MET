@@ -63,9 +63,9 @@ require(cvTools)
 
 ## Data
 
-Both adjmeanstypic and genomic data are available online at this [Github page](https://github.com/samuelbfernandes/Trait-assisted-GS), which refers to the article of @fernandes_efficiency_2018.
+Phenotypic adjusted means and genomic data are available online at this [GitHub page](https://github.com/samuelbfernandes/Trait-assisted-GS), which refers to the article of @fernandes_efficiency_2018.
 
-We can load the adjmeanstypic data directly from the Github using the following command:
+We can load the adj. means data directly from the Github using the following command:
 
 ```{r echo=TRUE}
 adjmeans = read.csv("https://raw.githubusercontent.com/samuelbfernandes/Trait-assisted-GS/master/means.csv")
@@ -82,7 +82,7 @@ head(adjmeans,10) %>% kbl(escape = F, align = 'c') %>%
 
 <br>
 
-The genomic data can also be acquired directly:
+The genomic data can also be loaded directly:
 
 ```{r echo=TRUE,warning=FALSE}
 SNPs = fread("https://raw.githubusercontent.com/samuelbfernandes/Trait-assisted-GS/master/snps.csv")
@@ -136,7 +136,7 @@ ggplot(adjmeans_L, aes(x = Y)) +
 
 ## Building the G matrix
 
-Note that the SNP matrix is coded using 1 and -1 for homozygotes and 0 for heterozygotes. We may change this codification to a dosage solution. In other words, we can represent the dosage of a allele of reference (A, for example) to code the loci. If the locus have AA, then we will atribute the number 2. If it is heterozygote, i.e. have only one A, then it will be 1. Otherwise, the locus will be represented by 0:
+Note that the SNP matrix is coded using 1 and -1 for homozygotes and 0 for heterozygotes. We may change this codification to a dosage solution. In other words, we can represent the dosage of a reference allele (A, for example) to code the loci. If the locus has AA, then we will attribute the number 2. If it is a heterozygote, i.e. have only one A, it will be 1. Otherwise, the locus will be represented by 0:
 
 ```{r echo=TRUE,warning=FALSE}
 SNPs = SNPs + 1
@@ -167,7 +167,7 @@ We will use the [AGHmatrix](https://cran.r-project.org/web/packages/AGHmatrix/vi
 G_matrix = Gmatrix(SNPs, method = "VanRaden", ploidy = 2, missingValue = NA)
 ```
 
-Now we have a square matrix whose number of rows and columns is equal to the number of genotypes. This is the Genomic kinship matrix:
+Now we have a square genomic relationship matrix whose number of rows and columns is equal to the number of individuals.  
 
 ```{r echo=TRUE}
 dim(G_matrix)
@@ -188,7 +188,7 @@ Heatmap(G_matrix, show_row_names = F, show_column_names = F,
 
 ## RRBLUP
 
-The Ridge Regression BLUP, or RRBLUP, will predict the marker effect. In the RRBLUP, we will use the matrix of markers directly. For this purpose, we will use only genotypes that were both adjmeanstyped and genotyped:
+The Ridge Regression BLUP, or RRBLUP, will predict the marker effect. In the RRBLUP, we will use the matrix of markers directly. For this purpose, we will use only individuals with adj. means and SNPs available. 
 
 ```{r echo=TRUE}
 # Selecting the adjmeanstypes with SNP information
@@ -202,9 +202,9 @@ SNPs_L = SNPs[index,]
 dim(SNPs_L)
 ```
 
-Note that 38 genotypes were dropped from the SNPs matrix and the data containing the adjmeanstypes. Those did not have both adjmeanstypic and genomic information.
+Note that 38 genotypes were dropped from the SNPs matrix and the data containing the means. Those did not have both means and genomic information.
 
-Now that we filtered our data, we can employ the RRBLUP. For this purpose, we will use the [rrBLUP](https://cran.r-project.org/web/packages/rrBLUP/rrBLUP.pdf) package [@endelman_2011]. In the code below, *y* is for the vector with the adjmeanstypic data, *Z* is where we will insert the SNPs matrix, *K* is for a covariance matrix for the random effects, which will be and identity matrix by default; and *X* is a design matrix for the fixed effects, which will be a vector of ones (**1**) by default. Note that we are returning to the "1, 0, -1" codification in the SNPs matrix. This is a requirement of the _rrBlUP_ package.
+Now that we filtered our data, we can employ the RRBLUP. For this purpose, we will use the [rrBLUP](https://cran.r-project.org/web/packages/rrBLUP/rrBLUP.pdf) package [@endelman_2011]. In the code below, *y* is for the vector with the means, *Z* is where we will insert the SNPs matrix, *K* is for a covariance matrix for the random effects, which will be and identity matrix by default; and *X* is a design matrix for the fixed effects, which will be a vector of ones (**1**) by default. Note that we are returning to the "1, 0, -1" codification in the SNPs matrix. This is a requirement of the _rrBlUP_ package.
 
 ```{r echo=TRUE}
 
@@ -219,7 +219,7 @@ as.data.frame(RRBLUP$u) %>%
 
 ```
 
-The scatter plot above represents the genetic value of each marker. Once we have acquired these values, we may calculate the Genomic Estimated Breeding Values (GEBV) of the genotypes. These are the product of the SNPs matrix with the vector of the markers' genetic values:
+The scatter plot above represents the additive genetic value of each marker. Once we have acquired these values, we may calculate the Genomic Estimated Breeding Values (GEBV) of the genotypes. These are the product of the SNPs matrix with the vector of the markers' genetic values:
 
 ```{r echo=TRUE}
 GEBV = SNPs_L %*% RRBLUP$u
@@ -233,7 +233,7 @@ as.data.frame(GEBV) %>%
 
 ```
 
-After obtaining the GEBV, we can calculate the accuracy of prediction. The correlation between the GEBV and the actual adjmeanstype represents this parameter:
+Then, we can estimate the correlation between the GEBV and the adjusted means.   
 
 ```{r echo=TRUE}
 
@@ -368,7 +368,7 @@ ETA = list(list(V = EVD_G$vectors, d = EVD_G$values, model = "RKHS"))
 After defining the ETA, we can fit the model:
 
 ```{r echo=TRUE, warning=FALSE}
-RKHS = BGLR(y = adjmeans_L$Y,ETA = ETA, nIter = 15000, burnIn = 5000, 
+RKHS = BGLR(y = adjmeans_L$Y,ETA = ETA, nIter = 10000, burnIn = 5000, 
            thin = 5, verbose = F)
 
 RKHS_GENO = data.frame("Genotype" = adjmeans_L$GENO,
@@ -442,7 +442,7 @@ results = list()
 Out = list()
 ```
 
-Then, we will construct the loop. Each iteration will assign *NA* for a different fold, and we will use the other folds to predict the values of the annulled one. Note that the folds vary for each repetition.
+Then, we will construct the loop. Each iteration will assign *NA* for a different fold, and we will use the other folds to predict the missing values. Note that the folds vary for each repetition.
 
 ```{r echo=TRUE}
 
@@ -457,7 +457,7 @@ for (z in 1:length(fold.list)) {
     train_data[train_data$ID %in% fold.list[[z]][[i]], "Y"] <- NA 
     
     # Fitting model 
-    BB_M <- BGLR(y = train_data$Y, ETA = ETA, nIter = 15000, burnIn = 5000, 
+    BB_M <- BGLR(y = train_data$Y, ETA = ETA, nIter = 10000, burnIn = 5000, 
                  thin = 5, verbose = F)
     
     # GEBV
@@ -490,7 +490,7 @@ Out
 
 ```
 
-The object "Out" is divided by repetition. In the "Out" objects for each repetition, "Rep" is the number of the repetition, "Log" is a diagnostic indicating if the order of the predicted breeding values matches the order of the adjmeanstypic data, "Ac" is the accuracy of prediction (correlation between the GEBV and adjmeanstypes), and "MSPE" is the mean square prediction error (the lower, the better).
+The object "Out" is divided by repetition. In the "Out" objects for each repetition, "Rep" is the number of the repetition, "Log" is a diagnostic indicating if the order of the predicted breeding values matches the order of the adjusted means, "Ac" is the prediction accuracy (correlation between the GEBV and adjusted means), and "MSPE" is the mean square prediction error (the lower, the better).
 
 The CV is the last step in the single-environment genomic selection/prediction. These models can be expanded for a multi-environment context.
 
